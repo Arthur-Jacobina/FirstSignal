@@ -2,6 +2,7 @@ import { useConnect } from 'wagmi'
 import { Button } from '../Button'
 import { Wallet } from 'lucide-react'
 
+
 export function ConnectButton() {
   const { connectors, connect, isPending } = useConnect()
   
@@ -24,10 +25,6 @@ export function ConnectButton() {
   return (
     <Button
       onClick={handleConnect}
-      variant="primary"
-      radius="xl"
-      size="sm"
-      disabled={isPending}
       className="flex items-center space-x-2"
     >
       <Wallet className="h-4 w-4" />

@@ -16,6 +16,7 @@ import { BorderBeam } from '@/components/magicui/border-beam'
 // Zod schema for form validation
 const registerSchema = z.object({
   message: z.string().min(2, 'Message must be at least 2 characters'),
+  recipient: z.string().min(2, 'Recipient handle must be at least 2 characters'),
   telegram: z.string().optional()
 })
 
@@ -29,7 +30,8 @@ function Send() {
   const { theme } = useThemeContext()
   const [formData, setFormData] = useState<RegisterFormData>({
     message: '',
-    telegram: ''
+    telegram: '',
+    recipient: ''
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
 
@@ -67,11 +69,12 @@ function Send() {
 
   const isButtonDisabled = !validation.isValid || 
     !formData.message.trim()
+    || !formData.recipient.trim()
 
   const formContent = (
     <div className="max-h-screen p-8 flex justify-center items-center flex-row">
-      <div className="max-w-2xl min-w-sm p-0 space-y-8 w-full md:w-auto h-full">
-        <NeonGradientCard className="p-0 bg-card max-w-sm w-full shadow-none border-1 border-border" neonColors={{
+      <div className="max-w-2xl min-w-md p-0 space-y-8 w-full md:w-auto h-full">
+        <NeonGradientCard className="p-0 bg-card min-w-md w-full shadow-none border-1 border-border" neonColors={{
           firstColor: theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))",
           secondColor: theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))"
         }} borderSize={1} opacity={0.9}>
@@ -93,7 +96,7 @@ function Send() {
                 <div className="grid gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="bio">
-                      <SparklesText className="text-foreground text-lg" sparklesCount={3}>
+                      <SparklesText className="text-foreground text-lg font-medium" sparklesCount={3}>
                       Message
                       </SparklesText>
                       </Label>
@@ -118,9 +121,27 @@ function Send() {
                     )}
                   </div>
                   <div className="grid gap-2">
+                    <Label htmlFor="recipient">
+                      <SparklesText className="text-foreground text-lg font-medium" sparklesCount={3}>
+                      Recipient handle
+                      </SparklesText>
+                    </Label>
+                    <Input 
+                      id="recipient" 
+                      type="text"
+                      placeholder="john_doe"
+                      value={formData.recipient}
+                      onChange={handleInputChange('recipient')}
+                      className={errors.recipient ? 'border-red-500 mt-2' : 'mt-2'}
+                    />
+                    {errors.recipient && (
+                      <span className="text-sm text-red-500">{errors.recipient}</span>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="email">
-                      <SparklesText className="text-foreground text-lg" sparklesCount={3}>
-                      Telegram handle (optional)
+                      <SparklesText className="text-foreground text-lg font-medium" sparklesCount={3}>
+                      Your handle (optional)
                       </SparklesText>
                     </Label>
                     <Input 
@@ -145,7 +166,7 @@ function Send() {
                 onClick={handleSubmit}
                 type="submit"
               >
-                Send
+                <SparklesText className="text-foreground text-lg font-medium" sparklesCount={3}>Send</SparklesText>
               </InteractiveHoverButton>
             </CardFooter>
           </MagicCard>
