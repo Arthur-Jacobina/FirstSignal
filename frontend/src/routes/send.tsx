@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card'
-import { Button } from '../components/Button'
+import { CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card'
 import { useState, useMemo } from 'react'
 import { MagicCard } from '../components/magicui/magic-card'
 import { useThemeContext } from '../context/ThemeContext'
@@ -9,6 +8,10 @@ import { Input } from '../components/ui/input'
 import { z } from 'zod'
 import { WarpBackground } from '@/components/magicui/warp-background'
 import { NeonGradientCard } from '@/components/magicui/neon-gradient-card'
+import { InteractiveHoverButton } from '@/components/magicui/interactive-hover-button'
+import { ComicText } from '@/components/magicui/comic-text'
+import { SparklesText } from '@/components/magicui/sparkles-text'
+import { BorderBeam } from '@/components/magicui/border-beam'
 
 // Zod schema for form validation
 const registerSchema = z.object({
@@ -74,47 +77,59 @@ function Send() {
         }} borderSize={1} opacity={0.9}>
           <MagicCard
             gradientColor={theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))"}
-            className="p-4 cursor-pointer"
+            className="p-4"
             gradientOpacity={0.2}
             gradientSize={50}
           >
             <CardHeader className="border-b border-border p-4 [.border-b]:pb-4">
-              <CardTitle>Send a Signal</CardTitle>
-              <CardDescription>
-                Send a signal to someone 🤫
-              </CardDescription>
+              <CardTitle>
+                <ComicText fontSize={3} style={{ color: "#ffffff" }}>
+                Send a Signal
+                </ComicText>
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="bio">Message</Label>
-                    <textarea 
-                      className={`min-h-32 w-full rounded-md border px-3 py-2 text-base resize-none 
-                        file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground 
-                        bg-transparent dark:bg-card/20 border-border shadow-xs transition-[color,box-shadow,border-color] outline-none 
-                        focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]
-                        aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 
-                        disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm
-                        ${errors.message ? 'border-red-500 aria-invalid:border-destructive' : ''}`}
-                      id="message" 
-                      placeholder="What's on your mind?"
-                      value={formData.message}
-                      onChange={handleInputChange('message')}
-                    />
+                    <Label htmlFor="bio">
+                      <SparklesText className="text-foreground text-lg" sparklesCount={3}>
+                      Message
+                      </SparklesText>
+                      </Label>
+                    <div className="relative rounded-md mt-2">
+                      <textarea 
+                        className={`min-h-32 w-full rounded-md border px-3 py-2 text-base resize-none 
+                          file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground 
+                          bg-transparent dark:bg-card/20 border-border shadow-xs transition-[color,box-shadow,border-color] outline-none 
+                          focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]
+                          aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 
+                          disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm
+                          ${errors.message ? 'border-red-500 aria-invalid:border-destructive' : ''}`}
+                        id="message" 
+                        placeholder="What's on your mind?"
+                        value={formData.message}
+                        onChange={handleInputChange('message')}
+                      />
+                      <BorderBeam />
+                    </div>
                     {errors.message && (
                       <span className="text-sm text-red-500">{errors.message}</span>
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Telegram handle (optional)</Label>
+                    <Label htmlFor="email">
+                      <SparklesText className="text-foreground text-lg" sparklesCount={3}>
+                      Telegram handle (optional)
+                      </SparklesText>
+                    </Label>
                     <Input 
                       id="telegram" 
                       type="text"
                       placeholder="john_doe"
                       value={formData.telegram}
                       onChange={handleInputChange('telegram')}
-                      className={errors.telegram ? 'border-red-500' : ''}
+                      className={errors.telegram ? 'border-red-500 mt-2' : 'mt-2'}
                     />
                     {errors.telegram && (
                       <span className="text-sm text-red-500">{errors.telegram}</span>
@@ -123,15 +138,15 @@ function Send() {
                 </div>
               </form>
             </CardContent>
-            <CardFooter className="p-4 border-t border-border [.border-t]:pt-4">
-              <Button 
-                className="w-full" 
+            <CardFooter className="p-4 justify-center border-t border-border [.border-t]:pt-4">
+              <InteractiveHoverButton 
+                className="min-w-[20vw]" 
                 disabled={isButtonDisabled}
                 onClick={handleSubmit}
                 type="submit"
               >
                 Send
-              </Button>
+              </InteractiveHoverButton>
             </CardFooter>
           </MagicCard>
         </NeonGradientCard>
