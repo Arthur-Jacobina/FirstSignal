@@ -11,23 +11,21 @@ import { WarpBackground } from '@/components/magicui/warp-background'
 
 // Zod schema for form validation
 const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address'),
-  bio: z.string().max(200, 'Bio must be less than 200 characters').optional()
+  message: z.string().min(2, 'Message must be at least 2 characters'),
+  telegram: z.string().optional()
 })
 
 type RegisterFormData = z.infer<typeof registerSchema>
 
-export const Route = createFileRoute('/register')({
-  component: Register,
+export const Route = createFileRoute('/send')({
+  component: Send,
 })
 
-function Register() {
+function Send() {
   const { theme } = useThemeContext()
   const [formData, setFormData] = useState<RegisterFormData>({
-    name: '',
-    email: '',
-    bio: ''
+    message: '',
+    telegram: ''
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
 
@@ -35,7 +33,7 @@ function Register() {
     const result = registerSchema.safeParse(formData)
     return {
       isValid: result.success,
-      errors: result.success ? {} : result.error.flatten().fieldErrors
+      errors: result.success ? {} : result.error
     }
   }, [formData])
 
@@ -64,8 +62,7 @@ function Register() {
   }
 
   const isButtonDisabled = !validation.isValid || 
-    !formData.name.trim() || 
-    !formData.email.trim()
+    !formData.message.trim()
 
   const formContent = (
     <div className="max-h-screen p-8 flex justify-center items-center flex-row">
@@ -78,59 +75,45 @@ function Register() {
             gradientSize={50}
           >
             <CardHeader className="border-b border-border p-4 [.border-b]:pb-4">
-              <CardTitle>Welcome to First Signal!</CardTitle>
+              <CardTitle>Send a Signal</CardTitle>
               <CardDescription>
-                Let's get you started!
+                Send a signal to someone 🤫
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4">
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input 
-                      id="name" 
-                      type="text" 
-                      placeholder="John Doe"
-                      value={formData.name}
-                      onChange={handleInputChange('name')}
-                      className={errors.name ? 'border-red-500' : ''}
-                    />
-                    {errors.name && (
-                      <span className="text-sm text-red-500">{errors.name}</span>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email"
-                      placeholder="john@example.com"
-                      value={formData.email}
-                      onChange={handleInputChange('email')}
-                      className={errors.email ? 'border-red-500' : ''}
-                    />
-                    {errors.email && (
-                      <span className="text-sm text-red-500">{errors.email}</span>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="bio">Short bio (optional)</Label>
+                    <Label htmlFor="bio">Message</Label>
                     <textarea 
-                      className={`min-h-24 w-full rounded-md border px-3 py-2 text-base resize-none 
+                      className={`min-h-32 w-full rounded-md border px-3 py-2 text-base resize-none 
                         file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground 
                         bg-transparent dark:bg-card/20 border-border shadow-xs transition-[color,box-shadow,border-color] outline-none 
                         focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]
                         aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 
                         disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm
-                        ${errors.bio ? 'border-red-500 aria-invalid:border-destructive' : ''}`}
-                      id="bio" 
-                      placeholder="Tell us about yourself..."
-                      value={formData.bio}
-                      onChange={handleInputChange('bio')}
+                        ${errors.message ? 'border-red-500 aria-invalid:border-destructive' : ''}`}
+                      id="message" 
+                      placeholder="What's on your mind?"
+                      value={formData.message}
+                      onChange={handleInputChange('message')}
                     />
-                    {errors.bio && (
-                      <span className="text-sm text-red-500">{errors.bio}</span>
+                    {errors.message && (
+                      <span className="text-sm text-red-500">{errors.message}</span>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Telegram handle (optional)</Label>
+                    <Input 
+                      id="telegram" 
+                      type="text"
+                      placeholder="john_doe"
+                      value={formData.telegram}
+                      onChange={handleInputChange('telegram')}
+                      className={errors.telegram ? 'border-red-500' : ''}
+                    />
+                    {errors.telegram && (
+                      <span className="text-sm text-red-500">{errors.telegram}</span>
                     )}
                   </div>
                 </div>
