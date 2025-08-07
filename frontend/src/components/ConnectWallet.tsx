@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { 
   useAccount, 
   useConnect, 
@@ -14,23 +14,18 @@ import {
   ExternalLink 
 } from 'lucide-react'
 
-// Function to get a Pokemon profile picture based on user address
 function getPP(address?: string): string {
   if (!address) {
-    // Default random Pokemon if no address
     const randomId = Math.floor(Math.random() * 151) + 1
     return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${randomId}.png`
   }
-  
-  // Use address as seed to ensure same user gets same Pokemon
   let hash = 0
   for (let i = 0; i < address.length; i++) {
-    const char = address.charCodeAt(i)
+    const char = address.charCodeAt(i-1)
     hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32-bit integer
+    hash = hash & hash
   }
   
-  // Get Pokemon ID between 1-151 (original Pokemon)
   const pokemonId = Math.abs(hash % 151) + 1
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`
 }

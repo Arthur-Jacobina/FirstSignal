@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label'
 import { Input } from '../components/ui/input'
 import { z } from 'zod'
 import { WarpBackground } from '@/components/magicui/warp-background'
+import { NeonGradientCard } from '@/components/magicui/neon-gradient-card'
 
 // Zod schema for form validation
 const registerSchema = z.object({
@@ -67,10 +68,13 @@ function Send() {
   const formContent = (
     <div className="max-h-screen p-8 flex justify-center items-center flex-row">
       <div className="max-w-2xl min-w-sm p-0 space-y-8 w-full md:w-auto h-full">
-        <Card className="p-0 max-w-sm w-full shadow-none border-1 border-border">
+        <NeonGradientCard className="p-0 bg-card max-w-sm w-full shadow-none border-1 border-border" neonColors={{
+          firstColor: theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))",
+          secondColor: theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))"
+        }} borderSize={1} opacity={0.9}>
           <MagicCard
             gradientColor={theme === "dark" ? "hsl(var(--primary))" : "hsl(var(--primary))"}
-            className="p-0 cursor-pointer"
+            className="p-4 cursor-pointer"
             gradientOpacity={0.2}
             gradientSize={50}
           >
@@ -130,7 +134,7 @@ function Send() {
               </Button>
             </CardFooter>
           </MagicCard>
-        </Card>
+        </NeonGradientCard>
       </div>
     </div>
   )
@@ -139,7 +143,7 @@ function Send() {
     <>
       {/* Desktop with WarpBackground */}
       <div className="hidden md:block">
-        <WarpBackground perspective={400} className="w-full h-full" gridColor={"hsl(var(--secondary))"} beamSize={3}>
+        <WarpBackground perspective={1000} className="w-full h-full" gridColor={"hsl(var(--secondary))"} beamSize={2} beamsPerSide={2}>
           {formContent}
         </WarpBackground>
       </div>
