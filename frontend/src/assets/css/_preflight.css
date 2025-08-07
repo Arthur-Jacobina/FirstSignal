@@ -1,0 +1,56 @@
+* {
+    @apply border-border outline-ring/50;
+  }
+  
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    @apply text-base;
+    @apply bg-background text-foreground;
+  }
+  
+  h1 {
+    @apply text-2xl font-semibold tracking-tight my-4;
+  }
+  
+  h2 {
+    @apply text-xl font-semibold my-2 tracking-tight;
+  }
+  
+  h3 {
+    @apply text-lg font-medium my-1 tracking-tight;
+  }
+  
+  h4 {
+    @apply text-sm font-medium text-foreground my-1;
+  }
+  
+  hgroup {
+    @apply flex items-center m-0 gap-2 flex-wrap;
+  
+    & > label {
+      @apply -mt-2 w-full;
+    }
+  
+    svg {
+      @apply text-primary h-5 w-5;
+    }
+  }
+  
+  dl {
+    dt {
+      @apply text-sm text-muted-foreground;
+  
+  
+    }
+    dd {
+      @apply font-medium text-sm;
+  
+      & + dt {
+        @apply mt-4;
+      }
+    }
+  }
+  
+  label {
+    @apply text-sm text-muted-foreground;
+  }
