@@ -333,7 +333,6 @@ function Send() {
   
   return (
     <>
-      {/* Desktop with WarpBackground */}
       <div className="hidden md:block">
         <WarpBackground perspective={1000} className="w-full h-full" gridColor={"hsl(var(--secondary))"} beamSize={2} beamsPerSide={2}>
           {formContent}
@@ -341,12 +340,10 @@ function Send() {
         </WarpBackground>
       </div>
 
-      {/* Mobile without WarpBackground */}
       <div className="md:hidden">
         {formContent}
       </div>
       
-      {/* Mint Overlay */}
       <MintOverlay 
         isOpen={isMintOverlayOpen} 
         onClose={() => setIsMintOverlayOpen(false)} 
