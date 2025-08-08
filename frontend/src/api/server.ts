@@ -20,7 +20,7 @@ app.get('/siwe/nonce', (c) => c.text(generateSiweNonce()))
 
 app.post('/siwe', async (c) => { 
   const { message, signature } = await c.req.json() 
-  const { address, chainId, nonce } = parseSiweMessage(message) 
+  const { address, chainId } = parseSiweMessage(message) 
 
   // Verify the signature. 
   const client = ServerClient.fromPorto(porto, { chainId }) 

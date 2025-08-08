@@ -1,6 +1,7 @@
 import { ChevronDown } from 'lucide-react'
 import { Button } from '../Button'
 import { DropdownMenu } from './DropdownMenu'
+import { getPP } from './utils'
 
 interface ConnectedProfileProps {
   address: string | undefined
@@ -28,9 +29,9 @@ export function ConnectedProfile({
       >
         <div className="w-6 h-6 rounded-full">
           <img 
-            src="/mockpp.png" 
+            src={getPP(address)} 
             alt="Profile" 
-            className="w-full h-full object-cover" 
+            className="w-6 h-6 object-cover" 
           />
         </div>        
         <span className="hidden sm:inline text-xs font-medium">

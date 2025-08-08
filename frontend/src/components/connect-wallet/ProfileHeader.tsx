@@ -1,3 +1,5 @@
+import { getPP } from "./utils"
+
 interface ProfileHeaderProps {
   address: string | undefined
   formatAddress: (addr: string) => string
@@ -9,9 +11,9 @@ export function ProfileHeader({ address, formatAddress }: ProfileHeaderProps) {
       <div className="flex items-center space-x-3">
         <div className="w-12 h-12 rounded-full">
           <img 
-            src="/mockpp.png" 
+            src={getPP(address)} 
             alt="Profile" 
-            className="w-full h-full object-cover" 
+            className="w-12 h-12 object-cover" 
           />
         </div>      
         <div className="flex-1 min-w-0">
