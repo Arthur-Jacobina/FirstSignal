@@ -1,0 +1,17 @@
+[project]
+name = "first-signal"
+version = "0.1.0"
+description = "Send your signal"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.23.0",
+    "supabase>=2.0.0",
+    "web3>=7.0.0",
+]
+
+[project.scripts]
+first-signal = "server.main:main"
+first-signal-api = "server.app:run"
