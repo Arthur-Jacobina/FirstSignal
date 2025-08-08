@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SendRouteImport } from './routes/send'
+import { Route as LandingpageRouteImport } from './routes/landingpage'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SendRoute = SendRouteImport.update({
   id: '/send',
   path: '/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingpageRoute = LandingpageRouteImport.update({
+  id: '/landingpage',
+  path: '/landingpage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/landingpage': typeof LandingpageRoute
   '/send': typeof SendRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/landingpage': typeof LandingpageRoute
   '/send': typeof SendRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/landingpage': typeof LandingpageRoute
   '/send': typeof SendRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/send'
+  fullPaths: '/' | '/landingpage' | '/send'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/send'
-  id: '__root__' | '/' | '/send'
+  to: '/' | '/landingpage' | '/send'
+  id: '__root__' | '/' | '/landingpage' | '/send'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LandingpageRoute: typeof LandingpageRoute
   SendRoute: typeof SendRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/send'
       fullPath: '/send'
       preLoaderRoute: typeof SendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landingpage': {
+      id: '/landingpage'
+      path: '/landingpage'
+      fullPath: '/landingpage'
+      preLoaderRoute: typeof LandingpageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LandingpageRoute: LandingpageRoute,
   SendRoute: SendRoute,
 }
 export const routeTree = rootRouteImport
