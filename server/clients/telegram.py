@@ -13,6 +13,20 @@ from .blockchain import get_blockchain_client
 
 load_dotenv()
 
+# Import agent - adding parent directory to path to import from root
+try:
+    import sys
+    import os
+    # Add the parent directory (server/) to Python path
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    from agent import agent
+    print("Successfully imported agent")
+except ImportError as e:
+    print(f"Warning: Could not import agent: {e}")
+    agent = None
+
 
 
 
@@ -497,6 +511,32 @@ class TelegramClient:
                     except Exception as exc:  # noqa: BLE001
                         print(f"Failed to send sender reveal: {exc}", file=sys.stderr)
                     
+                    # Stage 4: Send agent recommendation to the sender for next message
+                    if pending_message_data.get("sender_handle") and agent is not None:
+                        try:
+                            # Get recipient's username/handle
+                            db = get_database_client()
+                            recipient_username = db.get_username_by_chat_id(chat_id)
+                            recipient_name = recipient_username or f"User {chat_id}"
+                            
+                            # Prepare input for agent
+                            approved_message = pending_message_data.get("message", "")
+                            agent_input = f"My message '{approved_message}' was just approved by {recipient_name}. What should I send next to continue this connection? Give me advice for my next message to keep the conversation flowing naturally."
+                            
+                            print(f"Calling agent for next message recommendation: {agent_input}")
+                            agent_response = agent(user_input=agent_input)
+                            recommendation = agent_response.response if hasattr(agent_response, 'response') else str(agent_response)
+                            
+                            # Send recommendation to the original sender
+                            sender_chat_id = self._resolve_chat_id(pending_message_data.get("sender_handle"))
+                            recommendation_text = f"🎯 Great news! Your message was accepted! 🎉\n\n💡 Here's my recommendation for your next move:\n\n{recommendation}"
+                            
+                            self.send_message(chat_id=str(sender_chat_id), text=recommendation_text, protect_content=False)
+                            print(f"Sent agent recommendation to sender {pending_message_data.get('sender_handle')}")
+                            
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"Failed to send agent recommendation to sender: {exc}", file=sys.stderr)
+                    
                     # Clean up the stored message
                     del self._pending_messages[message_key]
                 
@@ -579,6 +619,7 @@ I find a gadget from my pocket and ready to match you someone. Just let me know 
         chat_id = chat.get("id")
         from_user = message.get("from", {}) or {}
         username = from_user.get("username")
+        text = message.get("text", "")
 
         if allowed_chat_id is not None and chat_id != allowed_chat_id:
             # Ignore messages from other chats
@@ -593,8 +634,26 @@ I find a gadget from my pocket and ready to match you someone. Just let me know 
                     print(f"Failed to send welcome prompt: {exc}", file=sys.stderr)
                 return
 
-            # Already registered: proceed with decision prompt
-            try:
-                self.send_decision_prompt(chat_id=int(chat_id), prompt_text=prompt_text)
-            except Exception as exc:  # noqa: BLE001
-                print(f"Failed to send decision prompt: {exc}", file=sys.stderr)
+            # Already registered: call agent with user message and send response
+            if text and agent is not None:
+                try:
+                    print(f"Calling agent with user input: {text}")
+                    agent_response = agent(user_input=text)
+                    response_text = agent_response.response if hasattr(agent_response, 'response') else str(agent_response)
+                    
+                    # Send the agent's response back to the user
+                    self.send_message(chat_id=str(chat_id), text=response_text, protect_content=False)
+                    print(f"Sent agent response to chat {chat_id}: {response_text}")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"Failed to process message with agent: {exc}", file=sys.stderr)
+                    # Fallback to decision prompt if agent fails
+                    try:
+                        self.send_decision_prompt(chat_id=int(chat_id), prompt_text=prompt_text)
+                    except Exception as fallback_exc:  # noqa: BLE001
+                        print(f"Failed to send decision prompt: {fallback_exc}", file=sys.stderr)
+            else:
+                # No text message or agent not available: proceed with decision prompt
+                try:
+                    self.send_decision_prompt(chat_id=int(chat_id), prompt_text=prompt_text)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"Failed to send decision prompt: {exc}", file=sys.stderr)

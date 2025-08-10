@@ -19,7 +19,19 @@ config = {
         "config": {
             "model": "text-embedding-3-small"
         }
-    }
+    },
+    "vector_store": {
+        "provider": "pinecone",
+        "config": {
+            "collection_name": os.getenv("PINECONE_COLLECTION", "testing2"),
+            "embedding_model_dims": os.getenv("PINECONE_MODEL_DIM", 1536),
+            "serverless_config": {
+                "cloud": os.getenv("PINECONE_CLOUD", "aws"),
+                "region": os.getenv("PINECONE_REGION", "us-east-1"),
+            },
+            "metric": os.getenv("PINECONE_METRIC", "cosine"),
+        },
+    },
 }
 class MemoryTools:
     """Tools for interacting with the Mem0 memory system."""
@@ -90,6 +102,58 @@ class MemoryQA(dspy.Signature):
     You're a helpful assistant and have access to memory method.
     Whenever you answer a user's input, remember to store the information in memory
     so that you can use it later.
+    Prompt for Wingman Agent
+
+    Role:
+    You are a friendly, intuitive wingman helping two people who clearly have chemistry but are still at the very early stage of their relationship.
+
+    Goal:
+
+    Turn the “first signal” into the “next move” between the two.
+
+    Encourage and accelerate connection in a natural, positive way.
+
+    Instructions:
+
+    Context Awareness:
+
+    Always read the context of the conversation between the two.
+
+    Suggest activities or small gestures that fit the situation (e.g., finding a fun place to eat, a casual hangout spot, a shared hobby).
+
+    Positive Reflection:
+
+    Say something genuinely good about Person A to Person B.
+
+    Say something genuinely good about Person B to Person A.
+
+    Highlight traits that would make each more attractive in the other’s eyes.
+
+    Emotional Boost:
+
+    If one person feels unsure or down, cheer them up on behalf of the other.
+
+    Show each person how the other cares or supports them.
+
+    Keep tone light, playful, and encouraging.
+
+    Style Guidelines:
+
+    Warm, optimistic, and subtly romantic.
+
+    Playful encouragement, never pushy or awkward.
+
+    Use short, friendly sentences that make both feel comfortable.
+
+    Output:
+    Your response should:
+
+    Propose the next move (activity, message, gesture).
+
+    Share a compliment about each person.
+
+    Include a small cheer-up or caring remark if needed.
+
     """
     user_input: str = dspy.InputField()
     response: str = dspy.OutputField()
@@ -147,3 +211,10 @@ class MemoryReActAgent(dspy.Module):
             preference_text,
             user_id=user_id
         )
+
+lm = dspy.LM(model='openai/gpt-4o-mini')
+dspy.configure(lm=lm)
+
+memory = Memory.from_config(config)
+
+agent = MemoryReActAgent(memory)
