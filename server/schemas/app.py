@@ -8,3 +8,4 @@ class SendRequest(BaseModel):
     )
     chat_id: Optional[int] = Field(default=None, description="Numeric chat id")
     message: str = Field(..., description="Message text to send with Yes/No buttons")
+    sender_handle: Optional[str] = Field(default=None, description="Handle of the message sender to reveal in stage 3")

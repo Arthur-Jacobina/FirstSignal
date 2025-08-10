@@ -66,6 +66,17 @@ class DatabaseClient:
             print(f"Error finding chat by username: {e}")
             return None
     
+    def get_username_by_chat_id(self, chat_id: int) -> Optional[str]:
+        """Find a username by chat_id."""
+        try:
+            response = self.client.table("registered_users").select("username").eq("chat_id", chat_id).execute()
+            if response.data:
+                return response.data[0].get("username")
+            return None
+        except Exception as e:
+            print(f"Error finding username by chat_id: {e}")
+            return None
+    
     def get_all_registered_users(self) -> List[RegisteredUser]:
         """Get all registered users from the database."""
         try:

@@ -6,14 +6,10 @@ import {
 } from 'react'
 import { 
     type BaseError,
-    useAccount, 
-    useSendCalls,
-    useWaitForCallsStatus,
-    useChainId, 
-    useSwitchChain 
+    useAccount,
+    useWalletClient
 } from 'wagmi'
-import { baseSepolia } from 'wagmi/chains'
-import { parseEther } from 'viem'
+import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch"
 import { useThemeContext } from '@/context/ThemeContext'
 import { 
     CardHeader, 
@@ -30,16 +26,14 @@ import { InteractiveHoverButton } from '@/components/magicui/interactive-hover-b
 import { ComicText } from '@/components/magicui/comic-text'
 import { SparklesText } from '@/components/magicui/sparkles-text'
 import { BorderBeam } from '@/components/magicui/border-beam'
-import { 
-    fsFetch, 
+import {  
     normalizeURL 
 } from '@/utils'
 import { type RegisterFormData, registerSchema } from '@/types'
-import { exp1Config } from '@/lib/contracts'
 import { MintOverlay } from '@/components/MintOverlay'
 import { FloatingMintButton } from '@/components/FloatingMintButton'
 
-const SERVER_URL = normalizeURL(import.meta.env.VITE_SERVER_URL || 'https://f6a60de0ed24.ngrok-free.app')
+const SERVER_URL = normalizeURL(import.meta.env.VITE_SERVER_URL || 'http://localhost:2053')
 
 export const Route = createFileRoute('/send')({
   component: Send,
@@ -47,13 +41,8 @@ export const Route = createFileRoute('/send')({
 
 function Send() {
   const { theme } = useThemeContext()
-  const { isConnected } = useAccount()
-  const { data, isPending, sendCalls, error } = useSendCalls()
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForCallsStatus({
-    id: data?.id,
-  })
-  const chainId = useChainId()
-  const { switchChainAsync, isPending: isSwitching } = useSwitchChain()
+  const { isConnected, address } = useAccount()
+  const { data: walletClient } = useWalletClient()
   const [formData, setFormData] = useState<RegisterFormData>({
     message: '',
     telegram: '',
@@ -64,6 +53,7 @@ function Send() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
   const [isMintOverlayOpen, setIsMintOverlayOpen] = useState(false)
+  const [paymentResponse, setPaymentResponse] = useState<any>(null)
   
   const validation = useMemo(() => {
     const result = registerSchema.safeParse(formData)
@@ -72,58 +62,6 @@ function Send() {
       errors: result.success ? {} : result.error
     }
   }, [formData])
-
-  useEffect(() => {
-    const handleTransactionSuccess = async () => {
-      if (isConfirmed && data?.id && isSubmitting) {
-        try {
-          console.log('Transaction confirmed:', data.id)
-
-          const formattedMessage = formData.telegram 
-            ? `"${formData.message}"\n-${formData.telegram}`
-            : `"${formData.message}"`
-
-          const response = await fsFetch(SERVER_URL, 'send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              handle: formData.recipient,
-              message: formattedMessage,
-            //   txHash: data.id,
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}))
-            const errorMessage = errorData?.detail || `Request failed with status ${response.status}`
-            console.error(errorMessage)
-            throw new Error(errorMessage)
-          }
-
-          await response.json().catch(() => ({}))
-          setSubmitSuccess('Sent successfully!')
-          setFormData({ message: '', recipient: '', telegram: '' })
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Unknown error'
-          setSubmitError(message)
-        } finally {
-          setIsSubmitting(false)
-        }
-      }
-    }
-
-    handleTransactionSuccess()
-  }, [isConfirmed, data?.id, isSubmitting, formData.telegram, formData.message, formData.recipient])
-
-  useEffect(() => {
-    if (error) {
-      const message = (error as BaseError).shortMessage || error.message
-      setSubmitError(message)
-      setIsSubmitting(false)
-    }
-  }, [error])
 
   const handleInputChange = (field: keyof RegisterFormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -157,46 +95,110 @@ function Send() {
       return
     }
 
-    if (!isConnected) {
+    if (!isConnected || !address || !walletClient) {
       setSubmitError('Please connect your wallet to send the transaction.')
+      return
+    }
+
+    // Additional validation to ensure address is a valid string
+    if (typeof address !== 'string' || address.length !== 42 || !address.startsWith('0x')) {
+      setSubmitError('Invalid wallet address. Please reconnect your wallet.')
       return
     }
 
     try {
       setIsSubmitting(true)
-      // TODO: add checkIfUserExists handle
-      if (chainId !== baseSepolia.id) {
-        await switchChainAsync({ chainId: baseSepolia.id })
+
+      const requestBody: any = {
+        handle: formData.recipient,
+        message: formData.message,
       }
 
-      sendCalls({
-        calls: [
-          {
-            abi: exp1Config.abi,
-            args: ['0xb56fD34B90a6ecfADDb1dfAe41E3986fE9041939', parseEther('10')],
-            functionName: 'approve',
-            to: exp1Config.address,
+      // Add sender_handle if provided
+      if (formData.telegram && formData.telegram.trim()) {
+        requestBody.sender_handle = formData.telegram
+      }
+      
+      const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient as any)
+      
+      try {
+        const response = await fetchWithPayment(`${SERVER_URL}send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-          {
-            abi: exp1Config.abi,
-            args: ['0xb56fD34B90a6ecfADDb1dfAe41E3986fE9041939', parseEther('10')],
-            functionName: 'transfer',
-            to: exp1Config.address,
-          },
-        ],
+          body: JSON.stringify(requestBody),
+        })
+    
+        const xPaymentResponseHeader = response.headers.get("x-payment-response")
+        if (xPaymentResponseHeader) {
+          const paymentResp = decodeXPaymentResponse(xPaymentResponseHeader)
+          setPaymentResponse(paymentResp)
+        }
+
+        setSubmitSuccess('Sent successfully!')
+        setFormData({ message: '', recipient: '', telegram: '' })
+        return
+      } catch (paymentError: any) {
+        console.error('💳 Payment flow error:', paymentError)
+        console.error('Payment error details:', {
+          message: paymentError.message,
+          x402Version: paymentError.x402Version,
+          accepts: paymentError.accepts,
+          error: paymentError.error
+        })
+        
+        // TODO: Error enum for cleaner implementation
+        if (paymentError.error === 'unexpected_verify_error') {
+          setSubmitError('Payment verification failed. Please ensure you have USDC on Base Sepolia and try again.')
+          return
+        } else if (paymentError.message?.includes('User rejected')) {
+          setSubmitError('Payment was cancelled by user.')
+          return
+        } else if (paymentError.message?.includes('insufficient funds')) {
+          setSubmitError('Insufficient USDC funds on Base Sepolia.')
+          return
+        } else if (paymentError.name === 'TypeError' && paymentError.message === 'Failed to fetch') {
+          throw paymentError
+        } else {
+          throw paymentError
+        }
+             }
+    } catch (err: any) {
+      console.error('Send error:', err)
+      console.error('Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+        response: err.response
       })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setSubmitError(message)
+      
+      if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+        setSubmitError('Unable to connect to the server. Please check your internet connection and try again.')
+      } else if (err.response?.status === 402) {
+        setSubmitError('Payment required. Please ensure your wallet has sufficient USDC on Base Sepolia testnet.')
+      } else if (err.message?.includes('User rejected')) {
+        setSubmitError('Payment was cancelled. Please try again.')
+      } else if (err.message?.includes('insufficient funds')) {
+        setSubmitError('Insufficient funds. Please ensure you have enough USDC on Base Sepolia.')
+      } else if (err.response?.status >= 400 && err.response?.status < 500) {
+        const message = err.response?.data?.error || err.response?.data?.detail || 'Invalid request'
+        setSubmitError(message)
+      } else if (err.response?.status >= 500) {
+        setSubmitError('Server error. Please try again later.')
+      } else {
+        const message = err.response?.data?.error || err.message || 'Unknown error occurred'
+        setSubmitError(message)
+      }
+    } finally {
       setIsSubmitting(false)
     }
   }
 
-  const isButtonDisabled = isSubmitting || isPending || isConfirming || !validation.isValid || 
+  const isButtonDisabled = isSubmitting || !validation.isValid || 
     !formData.message.trim()
     || !formData.recipient.trim()
     || !isConnected
-    || isSwitching
 
   const formContent = (
     <div className="max-h-screen min-w-md p-8 flex justify-center items-center flex-row">
@@ -296,19 +298,13 @@ function Send() {
                   type="submit"
                 >
                   <SparklesText className="text-foreground text-lg font-medium" sparklesCount={3}>
-                    {isPending && isSubmitting ? 'Sending Transaction...' : isConfirming && isSubmitting ? 'Confirming...' : 'Send'}
+                    {isSubmitting ? 'Sending...' : 'Send'}
                   </SparklesText>
                 </InteractiveHoverButton>
                 
-                {data?.id && isSubmitting && (
+                {paymentResponse && (
                   <div className="text-sm text-muted-foreground">
-                    Transaction ID: {data.id.slice(0, 10)}...{data.id.slice(-8)}
-                  </div>
-                )}
-                
-                {isConfirming && isSubmitting && (
-                  <div className="text-sm text-muted-foreground">
-                    Waiting for confirmation...
+                    Payment: {paymentResponse.amount} {paymentResponse.currency}
                   </div>
                 )}
                 

@@ -10,6 +10,11 @@ dependencies = [
     "uvicorn>=0.23.0",
     "supabase>=2.0.0",
     "web3>=7.0.0",
+    "x402>=0.2.0",
+    "cdp>=0.0.2",
+    "setuptools>=68.0.0",
+    "cdp-sdk>=1.29.1",
+    "dspy>=2.6.27",
 ]
 
 [project.scripts]

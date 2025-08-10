@@ -14,6 +14,8 @@ from .blockchain import get_blockchain_client
 load_dotenv()
 
 
+
+
 class TelegramClient:
     """Telegram Bot API client with database integration for chat management."""
     
@@ -31,6 +33,21 @@ class TelegramClient:
     
     # Public API methods
     
+    def _resolve_chat_id(self, handle: Optional[str]) -> int:
+        if not handle:
+            raise ValueError("Provide either chat_id or handle")
+
+        h = handle.strip()
+
+        if h.lstrip("-").isdigit():
+            return int(h)
+
+        result = self.find_registered_chat(h)
+        if result is not None:
+            return result
+
+        raise ValueError(f"User '{h}' not found. The user needs to message the bot first to get registered, or provide a numeric chat_id instead of a username.")
+
     def is_chat_registered(self, chat_id: int) -> bool:
         """Return True if the chat_id is already registered in the database."""
         try:
@@ -177,23 +194,24 @@ class TelegramClient:
 
         raise RuntimeError("Provide a numeric chat id or a public @username (channels/supergroups only)")
 
-    def send_decision_prompt(self, *, chat_id: int, prompt_text: str = "2B or not 2B?", initial_message_id: Optional[int] = None, pending_message: Optional[str] = None, image_message_id: Optional[int] = None) -> Dict[str, Any]:
-        """Send a message with Yes/No inline keyboard buttons."""
-        approve_data = "approve"
-        decline_data = "decline"
+    def send_decision_prompt(self, *, chat_id: int, prompt_text: str = "2B or not 2B?", initial_message_id: Optional[int] = None, pending_message: Optional[str] = None, image_message_id: Optional[int] = None, sender_handle: Optional[str] = None) -> Dict[str, Any]:
+        """Send a message with Yes/No inline keyboard buttons for the initial 'open' decision."""
+        approve_data = "open"
+        decline_data = "ignore"
         
         # Include initial message ID in callback data if provided
         if initial_message_id is not None:
-            approve_data = f"approve:{initial_message_id}"
-            decline_data = f"decline:{initial_message_id}"
+            approve_data = f"open:{initial_message_id}"
+            decline_data = f"ignore:{initial_message_id}"
         
-        # If we have a pending message or image, store them for later retrieval
+        # Store all the data for the multi-stage flow
         message_key = f"{chat_id}:{approve_data}"
-        if pending_message is not None or image_message_id is not None:
-            # Store both the message and image message ID
+        if pending_message is not None or image_message_id is not None or sender_handle is not None:
             self._pending_messages[message_key] = {
                 "message": pending_message,
-                "image_message_id": image_message_id
+                "image_message_id": image_message_id,
+                "sender_handle": sender_handle,
+                "stage": "open"  # Track which stage we're in
             }
         
         reply_markup = {
@@ -205,6 +223,21 @@ class TelegramClient:
             ]
         }
         return self.send_message(chat_id=str(chat_id), text=prompt_text, reply_markup=reply_markup, protect_content=True)
+
+    def send_accept_prompt(self, *, chat_id: int, message_content: str, approve_data: str, decline_data: str) -> Dict[str, Any]:
+        """Send the message content with accept/decline buttons for the second stage."""
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "Accept ✅", "callback_data": approve_data},
+                    {"text": "Decline ❌", "callback_data": decline_data},
+                ]
+            ]
+        }
+        
+        # Show the actual message content
+        full_text = f"{message_content}\n\nDo you want to accept this message?"
+        return self.send_message(chat_id=str(chat_id), text=full_text, reply_markup=reply_markup, protect_content=True)
 
     def send_welcome_registration_prompt(self, *, chat_id: int) -> Dict[str, Any]:
         """Send a welcome message with registration button."""
@@ -363,7 +396,7 @@ class TelegramClient:
                     print(f"editMessageText error: {exc}", file=sys.stderr)
             return
 
-        # Decision flow
+        # Multi-stage decision flow
         if data and callback_query_id and chat_id and message_id:
             # Parse callback data - it might include initial message ID
             action = data
@@ -375,10 +408,63 @@ class TelegramClient:
                 except ValueError:
                     pass  # Invalid format, ignore
             
-            if action == "approve":
-                # Check if we have a pending message for this approval
+            # Stage 1: User clicked "Yes" to open the message
+            if action == "open":
+                print(f"[STAGE 1 - OPEN] User {chat_id} opened a message")
                 message_key = f"{chat_id}:{data}"
                 pending_message_data = self._pending_messages.get(message_key)
+                
+                if pending_message_data and pending_message_data.get("message"):
+                    # Delete the image message
+                    if pending_message_data.get("image_message_id"):
+                        try:
+                            self.delete_message(chat_id=chat_id, message_id=pending_message_data["image_message_id"])
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"deleteMessage (image) error: {exc}", file=sys.stderr)
+                    
+                    # Delete the current prompt message
+                    try:
+                        self.delete_message(chat_id=chat_id, message_id=message_id)
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"deleteMessage (prompt) error: {exc}", file=sys.stderr)
+                    
+                    # Update the stage and create new callback data for stage 2
+                    pending_message_data["stage"] = "accept"
+                    accept_data = f"accept:{initial_message_id}" if initial_message_id else "accept"
+                    decline_data = f"decline_accept:{initial_message_id}" if initial_message_id else "decline_accept"
+                    
+                    # Store the data with new keys for stage 2
+                    accept_key = f"{chat_id}:{accept_data}"
+                    self._pending_messages[accept_key] = pending_message_data
+                    
+                    # Send stage 2: show message content with accept/decline
+                    try:
+                        self.send_accept_prompt(
+                            chat_id=chat_id,
+                            message_content=pending_message_data["message"],
+                            approve_data=accept_data,
+                            decline_data=decline_data
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"Failed to send accept prompt: {exc}", file=sys.stderr)
+                    
+                    # Clean up the old key
+                    if message_key in self._pending_messages:
+                        del self._pending_messages[message_key]
+                
+                try:
+                    self._answer_callback_query(callback_query_id=callback_query_id, text="Message opened")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"answerCallbackQuery error: {exc}", file=sys.stderr)
+            
+            # Stage 2: User clicked "Accept" after seeing the message content
+            elif action == "accept":
+                print(f"[STAGE 2 - ACCEPT] User {chat_id} accepted a message from {pending_message_data.get('sender_handle', 'Unknown') if 'pending_message_data' in locals() else 'Unknown'}")
+                message_key = f"{chat_id}:{data}"
+                pending_message_data = self._pending_messages.get(message_key)
+                
+                if pending_message_data:
+                    print(f"[STAGE 2 - ACCEPT] Message from {pending_message_data.get('sender_handle', 'Unknown')} accepted by user {chat_id}")
                 
                 blockchain_result = None
                 if pending_message_data:
@@ -391,58 +477,70 @@ class TelegramClient:
                         except Exception as exc:  # noqa: BLE001
                             print(f"Failed to store message on blockchain: {exc}", file=sys.stderr)
                             blockchain_result = {"success": False, "error": str(exc)}
-                        
-                        # Send the actual stored message
-                        try:
-                            message_text = pending_message_data["message"]
-                            if blockchain_result and blockchain_result.get("success"):
-                                tx_hash = blockchain_result.get("transaction_hash", "")
-                                short_hash = tx_hash[:10] + "..." if len(tx_hash) > 10 else tx_hash
-                                message_text += f"\n\n🔗 Stored on blockchain: {short_hash}"
-                            self.send_message(chat_id=str(chat_id), text=message_text)
-                        except Exception as exc:  # noqa: BLE001
-                            print(f"Failed to send pending message: {exc}", file=sys.stderr)
                     
-                    # Delete the image message if we have its ID
-                    if pending_message_data.get("image_message_id"):
-                        try:
-                            self.delete_message(chat_id=chat_id, message_id=pending_message_data["image_message_id"])
-                        except Exception as exc:  # noqa: BLE001
-                            print(f"deleteMessage (image) error: {exc}", file=sys.stderr)
+                    # Edit the accept prompt message to remove buttons (keep the message content visible)
+                    try:
+                        message_text = pending_message_data["message"]
+                        self._edit_message_text(chat_id=chat_id, message_id=message_id, text=message_text)
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"editMessageText (remove buttons) error: {exc}", file=sys.stderr)
+                    
+                    # Stage 3: Reveal the sender's handle
+                    try:
+                        sender_text = f"🌹\n\nNot so secret admirer: {pending_message_data.get('sender_handle', 'Secret admirer')}"
+                        if blockchain_result and blockchain_result.get("success"):
+                            tx_hash = blockchain_result.get("transaction_hash", "")
+                            short_hash = tx_hash[:10] + "..." if len(tx_hash) > 10 else tx_hash
+                            sender_text += f"\n\n🔗 Stored on blockchain: {short_hash}"
+                        
+                        self.send_message(chat_id=str(chat_id), text=sender_text)
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"Failed to send sender reveal: {exc}", file=sys.stderr)
                     
                     # Clean up the stored message
                     del self._pending_messages[message_key]
                 
-                # Set status text based on blockchain result
-                if blockchain_result and blockchain_result.get("success"):
-                    status_text = "Message decoded & stored on blockchain ✅"
-                elif blockchain_result:
-                    status_text = "Message decoded ⚠️ (blockchain error)"
-                else:
-                    status_text = "Message decoded ✅"
-                
                 try:
-                    self._answer_callback_query(callback_query_id=callback_query_id, text=status_text)
+                    self._answer_callback_query(callback_query_id=callback_query_id, text="Message accepted!")
                 except Exception as exc:  # noqa: BLE001
                     print(f"answerCallbackQuery error: {exc}", file=sys.stderr)
-                try:
-                    self._edit_message_text(chat_id=chat_id, message_id=message_id, text=status_text)
-                except Exception as exc:  # noqa: BLE001
-                    print(f"editMessageText error: {exc}", file=sys.stderr)
             
-            elif action == "decline":
-                # Get pending message data to access image message ID
-                message_key = f"{chat_id}:{data.replace('decline', 'approve')}"
-                pending_message_data = self._pending_messages.get(message_key)
+            # Handle declines at any stage
+            elif action in ["ignore", "decline_accept"]:
+                # Find the message key - could be current or need to reconstruct
+                message_key = f"{chat_id}:{data}"
                 
-                # Clean up any pending message
-                if message_key in self._pending_messages:
-                    del self._pending_messages[message_key]
-                
-                try:
-                    self._answer_callback_query(callback_query_id=callback_query_id, text="Declined")
-                except Exception as exc:  # noqa: BLE001
-                    print(f"answerCallbackQuery error: {exc}", file=sys.stderr)
+                # For ignore (stage 1), look for the open key
+                if action == "ignore":
+                    print(f"[STAGE 1 - DECLINE] User {chat_id} ignored/declined to open a message")
+                    
+                    # Get the pending message data first
+                    open_key = f"{chat_id}:{data.replace('ignore', 'open')}"
+                    pending_message_data = self._pending_messages.get(open_key)
+                    
+                    if pending_message_data and pending_message_data.get("sender_handle"):
+                        try:
+                            sender_id = self._resolve_chat_id(pending_message_data.get("sender_handle"))
+                            self.send_message(chat_id=str(sender_id), text='''Eh, looks like this arrow didn't land... 
+
+I find a gadget from my pocket and ready to match you someone. Just let me know when you ready.''')
+                            print(f"[STAGE 1 - DECLINE] Notified sender {pending_message_data.get('sender_handle')} that user {chat_id} declined")
+                        except Exception as exc:  # noqa: BLE001
+                            print(f"Failed to notify sender of decline: {exc}", file=sys.stderr)
+                        
+                        print(f"[STAGE 1 - DECLINE] Message from {pending_message_data.get('sender_handle', 'Unknown')} ignored by user {chat_id}")
+                    
+                    if open_key in self._pending_messages:
+                        del self._pending_messages[open_key]
+                else:
+                    # For decline_accept (stage 2), use current key
+                    pending_message_data = self._pending_messages.get(message_key)
+                    if pending_message_data:
+                        print(f"[STAGE 2 - DECLINE] Message from {pending_message_data.get('sender_handle', 'Unknown')} declined by user {chat_id}")
+                    else:
+                        print(f"[STAGE 2 - DECLINE] User {chat_id} declined to accept a message")
+                    if message_key in self._pending_messages:
+                        del self._pending_messages[message_key]
                 
                 # Delete the image message if we have its ID
                 if pending_message_data and pending_message_data.get("image_message_id"):
@@ -459,15 +557,21 @@ class TelegramClient:
                         print(f"deleteMessage (initial) error: {exc}", file=sys.stderr)
                 
                 try:
-                    # Delete the decision prompt message
+                    # Delete the current prompt message
                     self.delete_message(chat_id=chat_id, message_id=message_id)
                 except Exception as exc:  # noqa: BLE001
                     print(f"deleteMessage (prompt) error: {exc}", file=sys.stderr)
+                
                 try:
                     # Send the kills message
                     self.send_message(chat_id=str(chat_id), text="Got it. Kills: +1")
                 except Exception as exc:  # noqa: BLE001
                     print(f"Failed to send kills message: {exc}", file=sys.stderr)
+                
+                try:
+                    self._answer_callback_query(callback_query_id=callback_query_id, text="Declined")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"answerCallbackQuery error: {exc}", file=sys.stderr)
 
     def _handle_message(self, message: Dict[str, Any], allowed_chat_id: Optional[int], prompt_text: str) -> None:
         """Handle incoming message events."""
